@@ -5,42 +5,50 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>市区町村 経験値マップ</title>
 
+  <!-- 利用ライブラリ (CDN) -->
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <script src="https://unpkg.com/topojson-client@3"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
   <style>
-    * { box-sizing: border-box; }
-    body {
+    * {
+      box-sizing: border-box;
       margin: 0;
+      padding: 0;
+    }
+
+    body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       display: flex;
       flex-direction: column;
       height: 100vh;
       overflow: hidden;
       background: #f8fafc;
+      color: #334155;
     }
 
-    /* ツールバー */
+    /* 上部ツールバー */
     #toolbar {
-      padding: 12px 16px;
+      padding: 10px 16px;
       background: #ffffff;
       border-bottom: 1px solid #cbd5e1;
       display: flex;
-      gap: 16px;
+      gap: 12px;
       align-items: center;
+      justify-content: space-between;
       flex-wrap: wrap;
       z-index: 10;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
-    
+
     .palette-group {
       display: flex;
       gap: 8px;
       align-items: center;
       flex-wrap: wrap;
     }
+
     .palette-btn {
       display: flex;
       align-items: center;
@@ -48,109 +56,149 @@
       padding: 6px 12px;
       border-radius: 20px;
       border: 1px solid #cbd5e1;
-      background: #fff;
+      background: #ffffff;
       cursor: pointer;
       font-size: 13px;
       color: #334155;
-      transition: all 0.15s;
+      font-weight: 500;
+      transition: all 0.15s ease;
+      user-select: none;
     }
+
     .palette-btn:hover {
-      background: #f8fafc;
+      background: #f1f5f9;
       transform: translateY(-1px);
     }
+
     .palette-btn.active {
       border-color: #0f172a;
       background: #f1f5f9;
       font-weight: 600;
       box-shadow: 0 0 0 1px #0f172a;
     }
+
     .color-dot {
       width: 14px;
       height: 14px;
       border-radius: 50%;
       border: 1px solid #94a3b8;
+      display: inline-block;
+    }
+
+    .action-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
     }
 
     .btn {
       padding: 6px 14px;
       border: 1px solid #cbd5e1;
       border-radius: 6px;
-      background: #f8fafc;
+      background: #ffffff;
       font-size: 13px;
       font-weight: 500;
       cursor: pointer;
       color: #334155;
-      transition: background-color 0.15s;
+      transition: all 0.15s ease;
+      user-select: none;
     }
-    .btn:hover { background: #f1f5f9; }
-    .btn-primary { background: #2563eb; color: #fff; border-color: #2563eb; }
-    .btn-primary:hover { background: #1d4ed8; }
+
+    .btn:hover {
+      background: #f1f5f9;
+    }
+
+    .btn-primary {
+      background: #2563eb;
+      color: #ffffff;
+      border-color: #2563eb;
+    }
+
+    .btn-primary:hover {
+      background: #1d4ed8;
+      border-color: #1d4ed8;
+    }
 
     /* 地図描画エリア */
     #map-container {
       flex: 1;
       overflow: hidden;
-      background: #cbd5e1;
+      background: #e2e8f0;
       position: relative;
     }
-    svg { width: 100%; height: 100%; }
 
-    /* パズル・タイリング境界線 */
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: grab;
+    }
+
+    svg:active {
+      cursor: grabbing;
+    }
+
+    /* 自治体境界線・ポリゴン */
     path.municipality {
-      stroke: #cbd5e1;
-      stroke-width: 0.8px;
+      stroke: #94a3b8;
+      stroke-width: 0.5px;
       stroke-linejoin: round;
       stroke-linecap: round;
       vector-effect: non-scaling-stroke;
       cursor: pointer;
-      transition: fill 0.15s, stroke 0.1s, stroke-width 0.1s;
+      transition: fill 0.15s ease, stroke 0.1s ease;
     }
+
     path.municipality.highlight {
       stroke: #0f172a;
       stroke-width: 1.5px;
       vector-effect: non-scaling-stroke;
     }
 
-    /* ステータス表示 */
+    /* 起動・処理中ステータス表示 */
     #status-msg {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
       background: rgba(255, 255, 255, 0.95);
-      padding: 20px 28px;
+      padding: 18px 26px;
       border-radius: 10px;
       font-size: 14px;
       color: #334155;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
       text-align: center;
       z-index: 20;
+      pointer-events: none;
     }
 
-    /* 情報バー */
+    /* 情報バー（画面左下） */
     #info-bar {
       position: absolute;
-      bottom: 12px;
-      left: 12px;
+      bottom: 14px;
+      left: 14px;
       background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(4px);
       padding: 8px 14px;
       border-radius: 6px;
       font-size: 13px;
       font-weight: 500;
-      color: #334155;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      color: #1e293b;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
       pointer-events: none;
       z-index: 20;
       display: flex;
       align-items: center;
       gap: 8px;
     }
+
     .info-dot {
       width: 12px;
       height: 12px;
       border-radius: 50%;
       border: 1px solid #cbd5e1;
       display: inline-block;
+      flex-shrink: 0;
     }
 
     /* トースト通知 */
@@ -160,18 +208,22 @@
       left: 50%;
       transform: translateX(-50%) translateY(100px);
       background: #0f172a;
-      color: #fff;
-      padding: 10px 20px;
+      color: #ffffff;
+      padding: 10px 22px;
       border-radius: 30px;
-      font-size: 14px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-      transition: transform 0.3s ease;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
       z-index: 100;
       pointer-events: none;
     }
-    #toast.show { transform: translateX(-50%) translateY(0); }
 
-    /* モーダル */
+    #toast.show {
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* 共有モーダル */
     .modal-overlay {
       display: none;
       position: fixed;
@@ -182,47 +234,59 @@
       justify-content: center;
       z-index: 50;
     }
-    .modal-overlay.active { display: flex; }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
     .modal-card {
-      background: #fff;
+      background: #ffffff;
       border-radius: 12px;
       padding: 24px;
       width: 90%;
-      max-width: 440px;
+      max-width: 420px;
       text-align: center;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
     }
+
     .share-input-group {
       display: flex;
       gap: 8px;
       margin-bottom: 16px;
     }
+
     .share-input {
       flex: 1;
       padding: 8px 12px;
       border: 1px solid #cbd5e1;
       border-radius: 6px;
-      font-size: 13px;
+      font-size: 12px;
       background: #f8fafc;
+      color: #475569;
+      outline: none;
     }
+
     #qrcode {
       display: flex;
       justify-content: center;
-      margin-bottom: 20px;
+      margin-bottom: 18px;
       min-height: 180px;
+      align-items: center;
     }
   </style>
 </head>
 <body>
 
+  <!-- ツールバー -->
   <div id="toolbar">
     <div class="palette-group" id="palette"></div>
-    <div style="margin-left: auto; display: flex; gap: 8px;">
+    <div class="action-group">
       <button id="share-btn" class="btn btn-primary">📱 共有・移行</button>
       <button id="reset-btn" class="btn">リセット</button>
     </div>
   </div>
 
+  <!-- 地図エリア -->
   <div id="map-container">
     <div id="status-msg">🚀 システムを起動中...</div>
     <div id="info-bar">
@@ -231,10 +295,11 @@
     </div>
   </div>
 
+  <!-- 共有モーダル -->
   <div id="share-modal" class="modal-overlay">
     <div class="modal-card">
-      <h3 style="margin:0 0 8px; color:#0f172a;">スマホや別ブラウザへ移行</h3>
-      <p style="font-size: 13px; color: #64748b; margin-bottom: 20px;">QRコードを読み取るかURLを共有すると設定が同期されます。</p>
+      <h3 style="margin:0 0 6px; color:#0f172a; font-size:16px;">スマートフォンや別ブラウザへ移行</h3>
+      <p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">QRコードを読み取るかURLを共有すると現在の記録が同期されます。</p>
       <div id="qrcode"></div>
       <div class="share-input-group">
         <input id="share-url-input" class="share-input" type="text" readonly>
@@ -244,14 +309,14 @@
     </div>
   </div>
 
+  <!-- トースト通知 -->
   <div id="toast"></div>
 
   <script>
     const statusMsg = document.getElementById("status-msg");
-    const infoBar = document.getElementById("info-bar");
     const infoText = document.getElementById("info-text");
     const infoDot = document.querySelector(".info-dot");
-    
+
     function updateStatus(msg, isError = false) {
       if (statusMsg) {
         if (isError) {
@@ -274,6 +339,7 @@
     try {
       updateStatus("⚙️ 初期設定中...");
 
+      // 経験値6段階定義
       const EXPERIENCES = [
         { label: "行ったことがない", color: "#ffffff" },
         { label: "通過",           color: "#ffebb5" },
@@ -282,13 +348,13 @@
         { label: "宿泊した",         color: "#ff5900" },
         { label: "住んだ",           color: "#990000" }
       ];
-      
-      let selectedExpIndex = 3;
+
+      let selectedExpIndex = 3; // デフォルトは「訪問した」
       const STORAGE_KEY = "japan_muni_experience_map";
       const DEFAULT_INFO_TEXT = "市町村をクリックで着色（ホイールで拡大/縮小・ドラッグで移動）";
       let muniNamesMap = {};
 
-      // 自治体コードの取得と5桁正規化
+      // 自治体コードの正規化 (4桁→5桁ゼロ補完, 6桁→先頭5桁)
       function getMuniCode(d) {
         if (!d) return "unknown";
         const raw = d.id || (d.properties && (d.properties.code || d.properties.adm_code || d.properties.N03_007)) || "";
@@ -299,7 +365,7 @@
         return s;
       }
 
-      // 自治体名の取得（マスタ辞書優先 ＋ GeoJSONプロパティフォールバック）
+      // 市区町村名の取得 (muni_names.json 優先 -> properties -> フォールバック)
       function getMuniName(d) {
         const code = getMuniCode(d);
         if (muniNamesMap[code]) {
@@ -307,20 +373,22 @@
         }
         if (d && d.properties) {
           const p = d.properties;
-          if (p.N03_004) return `${p.N03_001 || ""} ${p.N03_004}`.trim();
-          if (p.name_ja || p.name) return p.name_ja || p.name;
+          if (p.N03_004) return p.N03_004.trim();
+          if (p.city || p.cityName) return (p.city || p.cityName).trim();
+          if (p.name_ja || p.name) return (p.name_ja || p.name).trim();
         }
         return `自治体コード: ${code}`;
       }
 
-      // 状態の復元
+      // 状態データの復元 (URLハッシュ -> LocalStorage)
       let expData = {};
       let isImported = false;
       const hash = window.location.hash;
 
       if (hash && hash.startsWith("#data=")) {
         try {
-          const decompressed = LZString.decompressFromEncodedURIComponent(hash.replace("#data=", ""));
+          const rawHashData = hash.replace("#data=", "");
+          const decompressed = LZString.decompressFromEncodedURIComponent(rawHashData);
           if (decompressed) {
             expData = JSON.parse(decompressed);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(expData));
@@ -328,7 +396,7 @@
             history.replaceState(null, "", window.location.pathname + window.location.search);
           }
         } catch (e) {
-          console.error("URL解凍エラー", e);
+          console.error("URLデータの解凍に失敗しました:", e);
         }
       }
 
@@ -340,18 +408,18 @@
         }
       }
 
-      // パレットUI生成
+      // ツールバーのパレットUI生成
       const paletteContainer = document.getElementById("palette");
       EXPERIENCES.forEach((exp, idx) => {
         const btn = document.createElement("button");
         btn.className = `palette-btn ${idx === selectedExpIndex ? "active" : ""}`;
-        
+
         const dot = document.createElement("span");
         dot.className = "color-dot";
         dot.style.backgroundColor = exp.color;
-        
+
         const text = document.createTextNode(exp.label);
-        
+
         btn.appendChild(dot);
         btn.appendChild(text);
 
@@ -363,22 +431,26 @@
         paletteContainer.appendChild(btn);
       });
 
-      // SVG & ズーム
-      updateStatus("🗺️ 地図エリアを構築中...");
-      const MAP_WIDTH = 850;
-      const MAP_HEIGHT = 680;
+      // SVG & ズーム機能の構築
+      updateStatus("🗺️ 地図描画環境を構築中...");
+      const MAP_WIDTH = 900;
+      const MAP_HEIGHT = 700;
       const svg = d3.select("#map-container").append("svg")
         .attr("viewBox", `0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`);
 
       const g = svg.append("g");
-      svg.call(d3.zoom().scaleExtent([0.5, 60]).on("zoom", (e) => g.attr("transform", e.transform)));
+      const zoom = d3.zoom()
+        .scaleExtent([0.5, 60])
+        .on("zoom", (e) => g.attr("transform", e.transform));
 
-      // 地図データと名称マスタの並行読み込み
+      svg.call(zoom);
+
+      // 地図データ (japan.json) と名称マスタ (muni_names.json) の並行取得
       updateStatus("📥 地図データと名称マスタを読み込み中...");
-      
+
       Promise.all([
         fetch("./japan.json").then(res => {
-          if (!res.ok) throw new Error(`japan.json が見つかりません (HTTP ${res.status})`);
+          if (!res.ok) throw new Error(`japan.json の読み込みに失敗しました (HTTP ${res.status})`);
           return res.json();
         }),
         fetch("./muni_names.json").then(res => res.ok ? res.json() : {}).catch(() => ({}))
@@ -391,19 +463,25 @@
         let features = [];
 
         if (japan.type === "Topology") {
-          const objKey = (japan.objects && japan.objects.municipalities) ? "municipalities" : Object.keys(japan.objects || {})[0];
-          if (!objKey) throw new Error("TopoJSON内に有効な市区町村オブジェクトが見つかりません。");
+          const objKey = (japan.objects && japan.objects.municipalities) 
+            ? "municipalities" 
+            : Object.keys(japan.objects || {})[0];
+
+          if (!objKey) throw new Error("TopoJSON 内に有効な市区町村オブジェクトが見つかりません。");
           featureCollection = topojson.feature(japan, japan.objects[objKey]);
           features = featureCollection.features;
         } else if (japan.type === "FeatureCollection") {
           featureCollection = japan;
           features = japan.features;
         } else {
-          throw new Error("不明なデータ形式です。");
+          throw new Error("非対応の GeoJSON / TopoJSON データ形式です。");
         }
 
-        if (features.length === 0) throw new Error("描画する地形データが0件です。");
+        if (!features || features.length === 0) {
+          throw new Error("描画対象となる自治体ポリゴンが0件です。");
+        }
 
+        // 座標系の自動判別 (WGS84 経緯度 か 事前投影済み平面座標 か)
         let pathFn;
         let firstCoord = features[0]?.geometry?.coordinates;
         while (Array.isArray(firstCoord) && Array.isArray(firstCoord[0])) {
@@ -411,16 +489,16 @@
         }
 
         if (firstCoord && firstCoord[0] > 100 && firstCoord[0] < 160) {
-          updateStatus("🌐 経緯度データを検出。自動フィット中...");
+          updateStatus("🌐 経緯度データを検出。投影サイズを自動調整中...");
           const projection = d3.geoMercator().fitSize([MAP_WIDTH, MAP_HEIGHT], featureCollection);
           pathFn = d3.geoPath().projection(projection);
         } else {
-          updateStatus("📐 事前投影済みデータを検出。描画中...");
+          updateStatus("📐 事前投影データを検出。描画中...");
           pathFn = d3.geoPath();
         }
 
-        // パス描画
-        g.selectAll("path.municipality")
+        // 自治体パスの描画
+        const paths = g.selectAll("path.municipality")
           .data(features)
           .enter()
           .append("path")
@@ -434,52 +512,70 @@
             const code = getMuniCode(d);
             const name = getMuniName(d);
             const currentLevel = expData[code] ?? 0;
-            
+
             infoText.textContent = `${name} （${EXPERIENCES[currentLevel].label}）`;
             infoDot.style.backgroundColor = EXPERIENCES[currentLevel].color;
-            
+
             d3.selectAll(`.muni-${code}`).classed("highlight", true);
           })
           .on("mouseleave", function(event, d) {
             const code = getMuniCode(d);
             infoText.textContent = DEFAULT_INFO_TEXT;
             infoDot.style.backgroundColor = "#ffffff";
-            
+
             d3.selectAll(`.muni-${code}`).classed("highlight", false);
           })
           .on("click", function(event, d) {
             const code = getMuniCode(d);
             const name = getMuniName(d);
-            expData[code] = selectedExpIndex;
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(expData));
-            
-            infoText.textContent = `${name} （${EXPERIENCES[selectedExpIndex].label}）`;
-            infoDot.style.backgroundColor = EXPERIENCES[selectedExpIndex].color;
+            const currentLevel = expData[code] ?? 0;
 
-            d3.selectAll(`.muni-${code}`).attr("fill", EXPERIENCES[selectedExpIndex].color);
-          })
-          .append("title")
-          .text(d => getMuniName(d));
+            // ★トグル判定: 既に色がついていて同じ色をクリックした場合は白(0)に戻す
+            let nextLevel = selectedExpIndex;
+            if (currentLevel !== 0 && currentLevel === selectedExpIndex) {
+              nextLevel = 0; // 白に戻す
+            }
+
+            if (nextLevel === 0) {
+              delete expData[code];
+            } else {
+              expData[code] = nextLevel;
+            }
+
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(expData));
+
+            infoText.textContent = `${name} （${EXPERIENCES[nextLevel].label}）`;
+            infoDot.style.backgroundColor = EXPERIENCES[nextLevel].color;
+
+            d3.selectAll(`.muni-${code}`).attr("fill", EXPERIENCES[nextLevel].color);
+          });
+
+        // 標準ツールチップ用 title タグ
+        paths.append("title").text(d => getMuniName(d));
 
         statusMsg.style.display = "none";
-        if (isImported) showToast("✨ 共有データを読み込み、保存しました！");
+        if (isImported) {
+          showToast("✨ 共有データを読み込み、ローカルに同期しました！");
+        }
       })
       .catch(err => {
         console.error(err);
         updateStatus(err.message, true);
       });
 
-      // リセット
+      // リセット機能
       document.getElementById("reset-btn").onclick = () => {
         if (confirm("すべての塗り分けをリセットしますか？")) {
           expData = {};
           localStorage.removeItem(STORAGE_KEY);
           d3.selectAll("path.municipality").attr("fill", EXPERIENCES[0].color);
-          showToast("リセットしました");
+          infoText.textContent = DEFAULT_INFO_TEXT;
+          infoDot.style.backgroundColor = "#ffffff";
+          showToast("すべての記録をリセットしました");
         }
       };
 
-      // 共有モーダル
+      // 共有モーダル機能
       const modal = document.getElementById("share-modal");
       const qrcodeContainer = document.getElementById("qrcode");
       const shareInput = document.getElementById("share-url-input");
@@ -503,14 +599,26 @@
       };
 
       document.getElementById("copy-btn").onclick = () => {
-        navigator.clipboard.writeText(shareInput.value).then(() => showToast("📋 URLをコピーしました！"));
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(shareInput.value)
+            .then(() => showToast("📋 共有URLをクリップボードにコピーしました！"))
+            .catch(() => {
+              shareInput.select();
+              document.execCommand("copy");
+              showToast("📋 共有URLをコピーしました！");
+            });
+        } else {
+          shareInput.select();
+          document.execCommand("copy");
+          showToast("📋 共有URLをコピーしました！");
+        }
       };
 
       document.getElementById("close-modal-btn").onclick = () => modal.classList.remove("active");
       modal.onclick = (e) => { if (e.target === modal) modal.classList.remove("active"); };
 
     } catch (globalError) {
-      console.error(globalError);
+      console.error("初期化エラー:", globalError);
       updateStatus(globalError.message, true);
     }
   </script>
