@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>市区町村 経験値マップ</title>
 
-  <!-- 指定された安定しているCDN -->
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <script src="https://unpkg.com/topojson-client@3"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
@@ -36,7 +35,6 @@
       box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     
-    /* ラベル付きピル型パレットUI */
     .palette-group {
       display: flex;
       gap: 8px;
@@ -88,26 +86,25 @@
     .btn-primary { background: #2563eb; color: #fff; border-color: #2563eb; }
     .btn-primary:hover { background: #1d4ed8; }
 
-    /* 地図描画エリア (パズル・タイリング境界線を活かすための背景色) */
+    /* 地図描画エリア */
     #map-container {
       flex: 1;
       overflow: hidden;
-      background: #cbd5e1; /* 背景（海）の色 */
+      background: #cbd5e1;
       position: relative;
     }
     svg { width: 100%; height: 100%; }
 
     /* パズル・タイリング境界線 */
     path.municipality {
-      stroke: #cbd5e1; /* 背景色と同一にすることで隙間のように見せる */
+      stroke: #cbd5e1;
       stroke-width: 0.8px;
       stroke-linejoin: round;
       stroke-linecap: round;
-      vector-effect: non-scaling-stroke; /* ズームしても線の太さを一定に保つ */
+      vector-effect: non-scaling-stroke;
       cursor: pointer;
       transition: fill 0.15s, stroke 0.1s, stroke-width 0.1s;
     }
-    /* ハイライト時 */
     path.municipality.highlight {
       stroke: #0f172a;
       stroke-width: 1.5px;
@@ -139,6 +136,7 @@
       padding: 8px 14px;
       border-radius: 6px;
       font-size: 13px;
+      font-weight: 500;
       color: #334155;
       box-shadow: 0 2px 6px rgba(0,0,0,0.15);
       pointer-events: none;
@@ -217,7 +215,6 @@
 </head>
 <body>
 
-  <!-- ツールバー -->
   <div id="toolbar">
     <div class="palette-group" id="palette"></div>
     <div style="margin-left: auto; display: flex; gap: 8px;">
@@ -226,7 +223,6 @@
     </div>
   </div>
 
-  <!-- 地図領域 -->
   <div id="map-container">
     <div id="status-msg">🚀 システムを起動中...</div>
     <div id="info-bar">
@@ -235,7 +231,6 @@
     </div>
   </div>
 
-  <!-- 共有モーダル -->
   <div id="share-modal" class="modal-overlay">
     <div class="modal-card">
       <h3 style="margin:0 0 8px; color:#0f172a;">スマホや別ブラウザへ移行</h3>
@@ -249,7 +244,6 @@
     </div>
   </div>
 
-  <!-- トースト通知 -->
   <div id="toast"></div>
 
   <script>
@@ -258,7 +252,6 @@
     const infoText = document.getElementById("info-text");
     const infoDot = document.querySelector(".info-dot");
     
-    // ステータス表示・エラーハンドリング関数
     function updateStatus(msg, isError = false) {
       if (statusMsg) {
         if (isError) {
@@ -271,7 +264,6 @@
       }
     }
 
-    // トースト通知関数
     function showToast(msg) {
       const toast = document.getElementById("toast");
       toast.textContent = msg;
@@ -282,7 +274,6 @@
     try {
       updateStatus("⚙️ 初期設定中...");
 
-      // 6段階の経験値レベル・ラベルとカラーパレット
       const EXPERIENCES = [
         { label: "行ったことがない", color: "#ffffff" },
         { label: "通過",           color: "#ffebb5" },
@@ -292,17 +283,37 @@
         { label: "住んだ",           color: "#990000" }
       ];
       
-      let selectedExpIndex = 3; // デフォルト「訪問した」
+      let selectedExpIndex = 3;
       const STORAGE_KEY = "japan_muni_experience_map";
       const DEFAULT_INFO_TEXT = "市町村をクリックで着色（ホイールで拡大/縮小・ドラッグで移動）";
+      let muniNamesMap = {};
 
-      // 自治体IDを安全に取得するフォールバック関数
+      // 自治体コードの取得と5桁正規化
       function getMuniCode(d) {
         if (!d) return "unknown";
-        return d.id || (d.properties && (d.properties.code || d.properties.adm_code || d.properties.N03_007)) || "unknown";
+        const raw = d.id || (d.properties && (d.properties.code || d.properties.adm_code || d.properties.N03_007)) || "";
+        const s = String(raw).trim();
+        if (!s) return "unknown";
+        if (s.length === 4) return "0" + s;
+        if (s.length === 6) return s.slice(0, 5);
+        return s;
       }
 
-      // 1. 状態の復元 (URLハッシュ優先 -> localStorage)
+      // 自治体名の取得（マスタ辞書優先 ＋ GeoJSONプロパティフォールバック）
+      function getMuniName(d) {
+        const code = getMuniCode(d);
+        if (muniNamesMap[code]) {
+          return muniNamesMap[code];
+        }
+        if (d && d.properties) {
+          const p = d.properties;
+          if (p.N03_004) return `${p.N03_001 || ""} ${p.N03_004}`.trim();
+          if (p.name_ja || p.name) return p.name_ja || p.name;
+        }
+        return `自治体コード: ${code}`;
+      }
+
+      // 状態の復元
       let expData = {};
       let isImported = false;
       const hash = window.location.hash;
@@ -314,7 +325,6 @@
             expData = JSON.parse(decompressed);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(expData));
             isImported = true;
-            // ハッシュを消去してクリーンアップ
             history.replaceState(null, "", window.location.pathname + window.location.search);
           }
         } catch (e) {
@@ -330,7 +340,7 @@
         }
       }
 
-      // 2. ラベル付きピル型パレットボタンの生成
+      // パレットUI生成
       const paletteContainer = document.getElementById("palette");
       EXPERIENCES.forEach((exp, idx) => {
         const btn = document.createElement("button");
@@ -353,7 +363,7 @@
         paletteContainer.appendChild(btn);
       });
 
-      // 3. SVG & ズーム (d3.zoom) 設定
+      // SVG & ズーム
       updateStatus("🗺️ 地図エリアを構築中...");
       const MAP_WIDTH = 850;
       const MAP_HEIGHT = 680;
@@ -363,104 +373,103 @@
       const g = svg.append("g");
       svg.call(d3.zoom().scaleExtent([0.5, 60]).on("zoom", (e) => g.attr("transform", e.transform)));
 
-      // 4. 地図データ (japan.json) 読み込みと自動判別描画
-      updateStatus("📥 地図データ (japan.json) を読み込み中...");
+      // 地図データと名称マスタの並行読み込み
+      updateStatus("📥 地図データと名称マスタを読み込み中...");
       
-      fetch("./japan.json")
-        .then(res => {
-          if (!res.ok) throw new Error(`ファイルが見つかりません (HTTPステータス: ${res.status})<br>※ローカルサーバー経由で開いているか確認してください。`);
+      Promise.all([
+        fetch("./japan.json").then(res => {
+          if (!res.ok) throw new Error(`japan.json が見つかりません (HTTP ${res.status})`);
           return res.json();
-        })
-        .then(japan => {
-          updateStatus("🔍 データを解析中...");
+        }),
+        fetch("./muni_names.json").then(res => res.ok ? res.json() : {}).catch(() => ({}))
+      ])
+      .then(([japan, names]) => {
+        muniNamesMap = names;
+        updateStatus("🔍 地形データを解析中...");
 
-          let featureCollection;
-          let features = [];
+        let featureCollection;
+        let features = [];
 
-          // TopoJSON / GeoJSON の自動判別
-          if (japan.type === "Topology") {
-            const objKey = (japan.objects && japan.objects.municipalities) ? "municipalities" : Object.keys(japan.objects || {})[0];
-            if (!objKey) throw new Error("TopoJSON内に有効な市区町村オブジェクトが見つかりません。");
-            featureCollection = topojson.feature(japan, japan.objects[objKey]);
-            features = featureCollection.features;
-          } else if (japan.type === "FeatureCollection") {
-            featureCollection = japan;
-            features = japan.features;
-          } else {
-            throw new Error("不明なデータ形式です。TopoJSONまたはGeoJSONを使用してください。");
-          }
+        if (japan.type === "Topology") {
+          const objKey = (japan.objects && japan.objects.municipalities) ? "municipalities" : Object.keys(japan.objects || {})[0];
+          if (!objKey) throw new Error("TopoJSON内に有効な市区町村オブジェクトが見つかりません。");
+          featureCollection = topojson.feature(japan, japan.objects[objKey]);
+          features = featureCollection.features;
+        } else if (japan.type === "FeatureCollection") {
+          featureCollection = japan;
+          features = japan.features;
+        } else {
+          throw new Error("不明なデータ形式です。");
+        }
 
-          if (features.length === 0) throw new Error("描画する地形データが0件です。");
+        if (features.length === 0) throw new Error("描画する地形データが0件です。");
 
-          // 座標形式の自動判定 (経緯度データかどうか)
-          let pathFn;
-          let firstCoord = features[0]?.geometry?.coordinates;
-          while (Array.isArray(firstCoord) && Array.isArray(firstCoord[0])) {
-            firstCoord = firstCoord[0];
-          }
+        let pathFn;
+        let firstCoord = features[0]?.geometry?.coordinates;
+        while (Array.isArray(firstCoord) && Array.isArray(firstCoord[0])) {
+          firstCoord = firstCoord[0];
+        }
 
-          if (firstCoord && firstCoord[0] > 100 && firstCoord[0] < 160) {
-            updateStatus("🌐 経緯度データを検出。自動フィットを適用します...");
-            const projection = d3.geoMercator().fitSize([MAP_WIDTH, MAP_HEIGHT], featureCollection);
-            pathFn = d3.geoPath().projection(projection);
-          } else {
-            updateStatus("📐 事前投影済みデータを検出。そのまま描画します...");
-            pathFn = d3.geoPath();
-          }
+        if (firstCoord && firstCoord[0] > 100 && firstCoord[0] < 160) {
+          updateStatus("🌐 経緯度データを検出。自動フィット中...");
+          const projection = d3.geoMercator().fitSize([MAP_WIDTH, MAP_HEIGHT], featureCollection);
+          pathFn = d3.geoPath().projection(projection);
+        } else {
+          updateStatus("📐 事前投影済みデータを検出。描画中...");
+          pathFn = d3.geoPath();
+        }
 
-          // パス（市町村ポリゴン）の描画
-          g.selectAll("path.municipality")
-            .data(features)
-            .enter()
-            .append("path")
-            .attr("class", d => `municipality muni-${getMuniCode(d)}`)
-            .attr("d", pathFn)
-            .attr("fill", d => {
-              const level = expData[getMuniCode(d)] ?? 0;
-              return EXPERIENCES[level].color;
-            })
-            // ホバー処理 (島・飛び地の一括連動)
-            .on("mouseenter", function(event, d) {
-              const code = getMuniCode(d);
-              const name = (d.properties && (d.properties.name || d.properties.nam_ja || d.properties.N03_004)) || `自治体コード: ${code}`;
-              const currentLevel = expData[code] ?? 0;
-              
-              infoText.textContent = `${name} （${EXPERIENCES[currentLevel].label}）`;
-              infoDot.style.backgroundColor = EXPERIENCES[currentLevel].color;
-              
-              d3.selectAll(`.muni-${code}`).classed("highlight", true);
-            })
-            .on("mouseleave", function(event, d) {
-              const code = getMuniCode(d);
-              infoText.textContent = DEFAULT_INFO_TEXT;
-              infoDot.style.backgroundColor = "#ffffff";
-              
-              d3.selectAll(`.muni-${code}`).classed("highlight", false);
-            })
-            // クリック処理 (即座に保存・着色)
-            .on("click", function(event, d) {
-              const code = getMuniCode(d);
-              expData[code] = selectedExpIndex;
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(expData));
-              
-              const name = (d.properties && (d.properties.name || d.properties.nam_ja || d.properties.N03_004)) || `自治体コード: ${code}`;
-              infoText.textContent = `${name} （${EXPERIENCES[selectedExpIndex].label}）`;
-              infoDot.style.backgroundColor = EXPERIENCES[selectedExpIndex].color;
+        // パス描画
+        g.selectAll("path.municipality")
+          .data(features)
+          .enter()
+          .append("path")
+          .attr("class", d => `municipality muni-${getMuniCode(d)}`)
+          .attr("d", pathFn)
+          .attr("fill", d => {
+            const level = expData[getMuniCode(d)] ?? 0;
+            return EXPERIENCES[level].color;
+          })
+          .on("mouseenter", function(event, d) {
+            const code = getMuniCode(d);
+            const name = getMuniName(d);
+            const currentLevel = expData[code] ?? 0;
+            
+            infoText.textContent = `${name} （${EXPERIENCES[currentLevel].label}）`;
+            infoDot.style.backgroundColor = EXPERIENCES[currentLevel].color;
+            
+            d3.selectAll(`.muni-${code}`).classed("highlight", true);
+          })
+          .on("mouseleave", function(event, d) {
+            const code = getMuniCode(d);
+            infoText.textContent = DEFAULT_INFO_TEXT;
+            infoDot.style.backgroundColor = "#ffffff";
+            
+            d3.selectAll(`.muni-${code}`).classed("highlight", false);
+          })
+          .on("click", function(event, d) {
+            const code = getMuniCode(d);
+            const name = getMuniName(d);
+            expData[code] = selectedExpIndex;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(expData));
+            
+            infoText.textContent = `${name} （${EXPERIENCES[selectedExpIndex].label}）`;
+            infoDot.style.backgroundColor = EXPERIENCES[selectedExpIndex].color;
 
-              d3.selectAll(`.muni-${code}`).attr("fill", EXPERIENCES[selectedExpIndex].color);
-            })
-            .append("title")
-            .text(d => (d.properties && (d.properties.name || d.properties.nam_ja)) || getMuniCode(d));
+            d3.selectAll(`.muni-${code}`).attr("fill", EXPERIENCES[selectedExpIndex].color);
+          })
+          .append("title")
+          .text(d => getMuniName(d));
 
-          statusMsg.style.display = "none";
-          if (isImported) showToast("✨ 共有データを読み込み、保存しました！");
-        })
-        .catch(err => {
-          console.error(err);
-          updateStatus(err.message, true);
-        });
+        statusMsg.style.display = "none";
+        if (isImported) showToast("✨ 共有データを読み込み、保存しました！");
+      })
+      .catch(err => {
+        console.error(err);
+        updateStatus(err.message, true);
+      });
 
-      // 5. リセット機能
+      // リセット
       document.getElementById("reset-btn").onclick = () => {
         if (confirm("すべての塗り分けをリセットしますか？")) {
           expData = {};
@@ -470,7 +479,7 @@
         }
       };
 
-      // 6. 共有モーダル機能 (LZString & QRCode.js)
+      // 共有モーダル
       const modal = document.getElementById("share-modal");
       const qrcodeContainer = document.getElementById("qrcode");
       const shareInput = document.getElementById("share-url-input");
