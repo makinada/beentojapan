@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>市区町村 経験値マップ</title>
 
   <!-- 利用ライブラリ (CDN) -->
@@ -24,6 +24,7 @@
       display: flex;
       flex-direction: column;
       height: 100vh;
+      height: 100dvh; /* iOS Safari / Chrome の可変アドレスバー・下部メニューに完全追従 */
       overflow: hidden;
       background: #f8fafc;
       color: #334155;
@@ -32,6 +33,7 @@
     /* 上部ツールバー */
     #toolbar {
       padding: 10px 16px;
+      padding-top: calc(10px + env(safe-area-inset-top, 0px)); /* ノッチ・Dynamic Island対策 */
       background: #ffffff;
       border-bottom: 1px solid #cbd5e1;
       display: flex;
@@ -175,8 +177,10 @@
       border-top: 1px solid #cbd5e1;
       box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
       padding: 12px 16px;
+      /* iOS Safariのホームバー・下部メニュー対策 */
+      padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
       z-index: 30;
-      transform: translateY(110%);
+      transform: translateY(115%);
       transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
       display: flex;
       flex-direction: column;
@@ -277,7 +281,7 @@
     /* トースト通知 */
     #toast {
       position: fixed;
-      top: 60px;
+      top: calc(60px + env(safe-area-inset-top, 0px));
       left: 50%;
       transform: translateX(-50%) translateY(-100px);
       background: #0f172a;
@@ -436,7 +440,7 @@
 
       const STORAGE_KEY = "japan_muni_experience_map";
       let muniNamesMap = {};
-      let selectedCode = null; // 現在選択中の自治体コード
+      let selectedCode = null;
 
       // 自治体コード正規化
       function getMuniCode(d) {
@@ -549,7 +553,7 @@
             // 地図着色を即座に更新
             d3.selectAll(`.muni-${code}`).attr("fill", EXPERIENCES[nextLevel].color);
 
-            // ボトムシートのバッジと選択ボタンを更新
+            // ボトムシートの表示更新
             updateBottomSheet(code, name);
           };
 
