@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>市区町村 経験値マップ</title>
 
   <!-- 利用ライブラリ (CDN) -->
@@ -16,6 +16,7 @@
       box-sizing: border-box;
       margin: 0;
       padding: 0;
+      -webkit-tap-highlight-color: transparent;
     }
 
     body {
@@ -37,52 +38,17 @@
       gap: 12px;
       align-items: center;
       justify-content: space-between;
-      flex-wrap: wrap;
       z-index: 10;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
 
-    .palette-group {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .palette-btn {
+    .app-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #0f172a;
       display: flex;
       align-items: center;
       gap: 6px;
-      padding: 6px 12px;
-      border-radius: 20px;
-      border: 1px solid #cbd5e1;
-      background: #ffffff;
-      cursor: pointer;
-      font-size: 13px;
-      color: #334155;
-      font-weight: 500;
-      transition: all 0.15s ease;
-      user-select: none;
-    }
-
-    .palette-btn:hover {
-      background: #f1f5f9;
-      transform: translateY(-1px);
-    }
-
-    .palette-btn.active {
-      border-color: #0f172a;
-      background: #f1f5f9;
-      font-weight: 600;
-      box-shadow: 0 0 0 1px #0f172a;
-    }
-
-    .color-dot {
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      border: 1px solid #94a3b8;
-      display: inline-block;
     }
 
     .action-group {
@@ -149,13 +115,21 @@
       transition: fill 0.15s ease, stroke 0.1s ease;
     }
 
-    path.municipality.highlight {
-      stroke: #0f172a;
-      stroke-width: 1.5px;
+    /* ホバー時（PC） */
+    path.municipality.hover-highlight {
+      stroke: #334155;
+      stroke-width: 1.2px;
       vector-effect: non-scaling-stroke;
     }
 
-    /* 起動・処理中ステータス表示 */
+    /* 選択中（フォーカス） */
+    path.municipality.selected {
+      stroke: #2563eb !important;
+      stroke-width: 2.2px !important;
+      vector-effect: non-scaling-stroke;
+    }
+
+    /* 起動ステータス */
     #status-msg {
       position: absolute;
       top: 50%;
@@ -172,41 +146,140 @@
       pointer-events: none;
     }
 
-    /* 情報バー（画面左下） */
-    #info-bar {
+    /* ガイドバー（未選択時） */
+    #guide-bar {
       position: absolute;
-      bottom: 14px;
-      left: 14px;
-      background: rgba(255, 255, 255, 0.95);
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.85);
       backdrop-filter: blur(4px);
-      padding: 8px 14px;
-      border-radius: 6px;
-      font-size: 13px;
+      color: #ffffff;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
       font-weight: 500;
-      color: #1e293b;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
       pointer-events: none;
-      z-index: 20;
+      z-index: 15;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      transition: opacity 0.2s ease;
+    }
+
+    /* ボトムシート（スマホ・PC共通アクションバー） */
+    #bottom-sheet {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #ffffff;
+      border-top: 1px solid #cbd5e1;
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
+      padding: 12px 16px;
+      z-index: 30;
+      transform: translateY(110%);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    #bottom-sheet.active {
+      transform: translateY(0);
+    }
+
+    .sheet-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .sheet-title-group {
       display: flex;
       align-items: center;
       gap: 8px;
     }
 
-    .info-dot {
+    .sheet-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .sheet-status-badge {
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 600;
+      border: 1px solid #cbd5e1;
+    }
+
+    .close-sheet-btn {
+      background: none;
+      border: none;
+      font-size: 18px;
+      color: #94a3b8;
+      cursor: pointer;
+      padding: 4px 8px;
+      line-height: 1;
+    }
+    .close-sheet-btn:hover { color: #334155; }
+
+    /* ボトムシート内のステータスボタン一覧 */
+    .sheet-options {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 6px;
+    }
+
+    @media (max-width: 640px) {
+      .sheet-options {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    .exp-option-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 4px;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      cursor: pointer;
+      font-size: 12px;
+      color: #334155;
+      font-weight: 500;
+      transition: all 0.12s ease;
+      user-select: none;
+    }
+
+    .exp-option-btn:hover {
+      background: #f8fafc;
+      transform: translateY(-1px);
+    }
+
+    .exp-option-btn.selected {
+      border-color: #0f172a;
+      background: #f1f5f9;
+      font-weight: 700;
+      box-shadow: 0 0 0 1.5px #0f172a;
+    }
+
+    .color-dot {
       width: 12px;
       height: 12px;
       border-radius: 50%;
-      border: 1px solid #cbd5e1;
-      display: inline-block;
+      border: 1px solid #94a3b8;
       flex-shrink: 0;
     }
 
     /* トースト通知 */
     #toast {
       position: fixed;
-      bottom: 24px;
+      top: 60px;
       left: 50%;
-      transform: translateX(-50%) translateY(100px);
+      transform: translateX(-50%) translateY(-100px);
       background: #0f172a;
       color: #ffffff;
       padding: 10px 22px;
@@ -277,21 +350,30 @@
 </head>
 <body>
 
-  <!-- ツールバー -->
+  <!-- 上部ツールバー -->
   <div id="toolbar">
-    <div class="palette-group" id="palette"></div>
+    <div class="app-title">🗾 市区町村 経験値マップ</div>
     <div class="action-group">
       <button id="share-btn" class="btn btn-primary">📱 共有・移行</button>
       <button id="reset-btn" class="btn">リセット</button>
     </div>
   </div>
 
-  <!-- 地図エリア -->
+  <!-- 地図描画エリア -->
   <div id="map-container">
     <div id="status-msg">🚀 システムを起動中...</div>
-    <div id="info-bar">
-      <span class="info-dot" style="background:#ffffff;"></span>
-      <span id="info-text">市町村をクリックで着色（ホイールで拡大/縮小・ドラッグで移動）</span>
+    <div id="guide-bar">市町村をタップして選択</div>
+
+    <!-- ボトムシート -->
+    <div id="bottom-sheet">
+      <div class="sheet-header">
+        <div class="sheet-title-group">
+          <span id="sheet-city-name" class="sheet-title">市町村名</span>
+          <span id="sheet-status-badge" class="sheet-status-badge">未訪問</span>
+        </div>
+        <button id="close-sheet-btn" class="close-sheet-btn" title="閉じる">✕</button>
+      </div>
+      <div class="sheet-options" id="sheet-options"></div>
     </div>
   </div>
 
@@ -314,8 +396,11 @@
 
   <script>
     const statusMsg = document.getElementById("status-msg");
-    const infoText = document.getElementById("info-text");
-    const infoDot = document.querySelector(".info-dot");
+    const guideBar = document.getElementById("guide-bar");
+    const bottomSheet = document.getElementById("bottom-sheet");
+    const sheetCityName = document.getElementById("sheet-city-name");
+    const sheetStatusBadge = document.getElementById("sheet-status-badge");
+    const sheetOptionsContainer = document.getElementById("sheet-options");
 
     function updateStatus(msg, isError = false) {
       if (statusMsg) {
@@ -349,12 +434,11 @@
         { label: "住んだ",           color: "#990000" }
       ];
 
-      let selectedExpIndex = 3; // デフォルトは「訪問した」
       const STORAGE_KEY = "japan_muni_experience_map";
-      const DEFAULT_INFO_TEXT = "市町村をクリックで着色（ホイールで拡大/縮小・ドラッグで移動）";
       let muniNamesMap = {};
+      let selectedCode = null; // 現在選択中の自治体コード
 
-      // 自治体コードの正規化 (4桁→5桁ゼロ補完, 6桁→先頭5桁)
+      // 自治体コード正規化
       function getMuniCode(d) {
         if (!d) return "unknown";
         const raw = d.id || (d.properties && (d.properties.code || d.properties.adm_code || d.properties.N03_007)) || "";
@@ -365,19 +449,17 @@
         return s;
       }
 
-      // 市区町村名の取得 (muni_names.json 優先 -> properties -> フォールバック)
+      // 市区町村名取得
       function getMuniName(d) {
         const code = getMuniCode(d);
-        if (muniNamesMap[code]) {
-          return muniNamesMap[code];
-        }
+        if (muniNamesMap[code]) return muniNamesMap[code];
         if (d && d.properties) {
           const p = d.properties;
           if (p.N03_004) return p.N03_004.trim();
           if (p.city || p.cityName) return (p.city || p.cityName).trim();
           if (p.name_ja || p.name) return (p.name_ja || p.name).trim();
         }
-        return `自治体コード: ${code}`;
+        return `自治体: ${code}`;
       }
 
       // 状態データの復元 (URLハッシュ -> LocalStorage)
@@ -396,7 +478,7 @@
             history.replaceState(null, "", window.location.pathname + window.location.search);
           }
         } catch (e) {
-          console.error("URLデータの解凍に失敗しました:", e);
+          console.error("URL解凍エラー:", e);
         }
       }
 
@@ -408,28 +490,80 @@
         }
       }
 
-      // ツールバーのパレットUI生成
-      const paletteContainer = document.getElementById("palette");
-      EXPERIENCES.forEach((exp, idx) => {
-        const btn = document.createElement("button");
-        btn.className = `palette-btn ${idx === selectedExpIndex ? "active" : ""}`;
+      // ボトムシートの更新関数
+      function updateBottomSheet(code, name) {
+        if (!code) {
+          bottomSheet.classList.remove("active");
+          d3.selectAll("path.municipality").classed("selected", false);
+          guideBar.style.opacity = "1";
+          selectedCode = null;
+          return;
+        }
 
-        const dot = document.createElement("span");
-        dot.className = "color-dot";
-        dot.style.backgroundColor = exp.color;
+        selectedCode = code;
+        guideBar.style.opacity = "0";
 
-        const text = document.createTextNode(exp.label);
+        // 地図上の枠線ハイライト
+        d3.selectAll("path.municipality").classed("selected", false);
+        d3.selectAll(`.muni-${code}`).classed("selected", true);
 
-        btn.appendChild(dot);
-        btn.appendChild(text);
+        const currentLevel = expData[code] ?? 0;
+        sheetCityName.textContent = name;
+        sheetStatusBadge.textContent = EXPERIENCES[currentLevel].label;
+        sheetStatusBadge.style.backgroundColor = EXPERIENCES[currentLevel].color;
+        sheetStatusBadge.style.color = currentLevel === 5 ? "#ffffff" : "#0f172a";
 
-        btn.onclick = () => {
-          document.querySelectorAll(".palette-btn").forEach(b => b.classList.remove("active"));
-          btn.classList.add("active");
-          selectedExpIndex = idx;
-        };
-        paletteContainer.appendChild(btn);
-      });
+        // オプションボタンを再描画
+        sheetOptionsContainer.innerHTML = "";
+        EXPERIENCES.forEach((exp, idx) => {
+          const btn = document.createElement("button");
+          btn.className = `exp-option-btn ${idx === currentLevel ? "selected" : ""}`;
+
+          const dot = document.createElement("span");
+          dot.className = "color-dot";
+          dot.style.backgroundColor = exp.color;
+
+          const label = document.createElement("span");
+          label.textContent = exp.label;
+
+          btn.appendChild(dot);
+          btn.appendChild(label);
+
+          btn.onclick = (e) => {
+            e.stopPropagation();
+            let nextLevel = idx;
+
+            // トグル動作: 現在と同じ色を再度押した場合は白(0)に戻す
+            if (currentLevel !== 0 && currentLevel === idx) {
+              nextLevel = 0;
+            }
+
+            if (nextLevel === 0) {
+              delete expData[code];
+            } else {
+              expData[code] = nextLevel;
+            }
+
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(expData));
+
+            // 地図着色を即座に更新
+            d3.selectAll(`.muni-${code}`).attr("fill", EXPERIENCES[nextLevel].color);
+
+            // ボトムシートのバッジと選択ボタンを更新
+            updateBottomSheet(code, name);
+          };
+
+          sheetOptionsContainer.appendChild(btn);
+        });
+
+        bottomSheet.classList.add("active");
+      }
+
+      // ボトムシートを閉じる
+      document.getElementById("close-sheet-btn").onclick = (e) => {
+        e.stopPropagation();
+        updateBottomSheet(null);
+      };
 
       // SVG & ズーム機能の構築
       updateStatus("🗺️ 地図描画環境を構築中...");
@@ -445,15 +579,22 @@
 
       svg.call(zoom);
 
-      // 地図データ (japan.json) と名称マスタ (muni_names.json) の並行取得
+      // 背景クリックで選択解除
+      svg.on("click", (e) => {
+        if (e.target.tagName !== "path") {
+          updateBottomSheet(null);
+        }
+      });
+
+      // 地図データと名称マスタの並行取得（キャッシュ破棄クエリ付き）
       updateStatus("📥 地図データと名称マスタを読み込み中...");
 
       Promise.all([
-        fetch("./japan.json").then(res => {
+        fetch("./japan.json?v=2").then(res => {
           if (!res.ok) throw new Error(`japan.json の読み込みに失敗しました (HTTP ${res.status})`);
           return res.json();
         }),
-        fetch("./muni_names.json").then(res => res.ok ? res.json() : {}).catch(() => ({}))
+        fetch("./muni_names.json?v=2").then(res => res.ok ? res.json() : {}).catch(() => ({}))
       ])
       .then(([japan, names]) => {
         muniNamesMap = names;
@@ -474,14 +615,10 @@
           featureCollection = japan;
           features = japan.features;
         } else {
-          throw new Error("非対応の GeoJSON / TopoJSON データ形式です。");
+          throw new Error("非対応のデータ形式です。");
         }
 
-        if (!features || features.length === 0) {
-          throw new Error("描画対象となる自治体ポリゴンが0件です。");
-        }
-
-        // 座標系の自動判別 (WGS84 経緯度 か 事前投影済み平面座標 か)
+        // 座標系自動判別
         let pathFn;
         let firstCoord = features[0]?.geometry?.coordinates;
         while (Array.isArray(firstCoord) && Array.isArray(firstCoord[0])) {
@@ -489,15 +626,13 @@
         }
 
         if (firstCoord && firstCoord[0] > 100 && firstCoord[0] < 160) {
-          updateStatus("🌐 経緯度データを検出。投影サイズを自動調整中...");
           const projection = d3.geoMercator().fitSize([MAP_WIDTH, MAP_HEIGHT], featureCollection);
           pathFn = d3.geoPath().projection(projection);
         } else {
-          updateStatus("📐 事前投影データを検出。描画中...");
           pathFn = d3.geoPath();
         }
 
-        // 自治体パスの描画
+        // 自治体パス描画
         const paths = g.selectAll("path.municipality")
           .data(features)
           .enter()
@@ -510,47 +645,19 @@
           })
           .on("mouseenter", function(event, d) {
             const code = getMuniCode(d);
-            const name = getMuniName(d);
-            const currentLevel = expData[code] ?? 0;
-
-            infoText.textContent = `${name} （${EXPERIENCES[currentLevel].label}）`;
-            infoDot.style.backgroundColor = EXPERIENCES[currentLevel].color;
-
-            d3.selectAll(`.muni-${code}`).classed("highlight", true);
+            d3.selectAll(`.muni-${code}`).classed("hover-highlight", true);
           })
           .on("mouseleave", function(event, d) {
             const code = getMuniCode(d);
-            infoText.textContent = DEFAULT_INFO_TEXT;
-            infoDot.style.backgroundColor = "#ffffff";
-
-            d3.selectAll(`.muni-${code}`).classed("highlight", false);
+            d3.selectAll(`.muni-${code}`).classed("hover-highlight", false);
           })
           .on("click", function(event, d) {
+            event.stopPropagation();
             const code = getMuniCode(d);
             const name = getMuniName(d);
-            const currentLevel = expData[code] ?? 0;
-
-            // ★トグル判定: 既に色がついていて同じ色をクリックした場合は白(0)に戻す
-            let nextLevel = selectedExpIndex;
-            if (currentLevel !== 0 && currentLevel === selectedExpIndex) {
-              nextLevel = 0; // 白に戻す
-            }
-
-            if (nextLevel === 0) {
-              delete expData[code];
-            } else {
-              expData[code] = nextLevel;
-            }
-
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(expData));
-
-            infoText.textContent = `${name} （${EXPERIENCES[nextLevel].label}）`;
-            infoDot.style.backgroundColor = EXPERIENCES[nextLevel].color;
-
-            d3.selectAll(`.muni-${code}`).attr("fill", EXPERIENCES[nextLevel].color);
+            updateBottomSheet(code, name);
           });
 
-        // 標準ツールチップ用 title タグ
         paths.append("title").text(d => getMuniName(d));
 
         statusMsg.style.display = "none";
@@ -569,8 +676,7 @@
           expData = {};
           localStorage.removeItem(STORAGE_KEY);
           d3.selectAll("path.municipality").attr("fill", EXPERIENCES[0].color);
-          infoText.textContent = DEFAULT_INFO_TEXT;
-          infoDot.style.backgroundColor = "#ffffff";
+          updateBottomSheet(null);
           showToast("すべての記録をリセットしました");
         }
       };
