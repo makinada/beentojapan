@@ -656,14 +656,15 @@
 
         // 座標系自動判別
         let pathFn;
+        let activeProjection = null;
         let firstCoord = features[0]?.geometry?.coordinates;
         while (Array.isArray(firstCoord) && Array.isArray(firstCoord[0])) {
           firstCoord = firstCoord[0];
         }
 
         if (firstCoord && firstCoord[0] > 100 && firstCoord[0] < 160) {
-          const projection = d3.geoMercator().fitSize([MAP_WIDTH, MAP_HEIGHT], featureCollection);
-          pathFn = d3.geoPath().projection(projection);
+          activeProjection = d3.geoMercator().fitSize([MAP_WIDTH, MAP_HEIGHT], featureCollection);
+          pathFn = d3.geoPath().projection(activeProjection);
         } else {
           pathFn = d3.geoPath();
         }
@@ -722,6 +723,47 @@
         statusMsg.style.display = "none";
         if (isImported) {
           showToast("✨ 共有データを読み込み、ローカルに同期しました！");
+        }
+
+        // 3. ★ 現在地取得と半径約300km圏内への自動フォーカス
+        if (activeProjection && navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              try {
+                const lon = pos.coords.longitude;
+                const lat = pos.coords.latitude;
+
+                // 日本周辺（経度120-155、緯度20-46）か判定
+                if (lon >= 120 && lon <= 155 && lat >= 20 && lat <= 46) {
+                  const centerPoint = activeProjection([lon, lat]);
+                  if (!centerPoint) return;
+
+                  // 半径300km（南北方向 約2.7度）のピクセル距離を算出
+                  const northPoint = activeProjection([lon, lat + 2.7]);
+                  const rPixel = Math.abs(centerPoint[1] - northPoint[1]);
+
+                  // 画面の短辺（MAP_HEIGHT=700）の約75%に半径300km（全幅600km）が収まるスケール倍率
+                  const targetScale = Math.max(1, Math.min((MAP_HEIGHT * 0.38) / rPixel, 12));
+
+                  // 現在地を中心にパン＆ズーム
+                  const tx = MAP_WIDTH / 2 - targetScale * centerPoint[0];
+                  const ty = MAP_HEIGHT / 2 - targetScale * centerPoint[1];
+
+                  svg.transition()
+                    .duration(1000)
+                    .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(targetScale));
+
+                  showToast("📍 現在地周辺（半径約300km）を表示しました");
+                }
+              } catch (geoErr) {
+                console.warn("現在地ズームの計算をスキップしました:", geoErr);
+              }
+            },
+            () => {
+              // 位置情報が拒否・タイムアウトした場合は静かに全国表示を維持
+            },
+            { enableHighAccuracy: false, timeout: 6000, maximumAge: 600000 }
+          );
         }
       })
       .catch(err => {
