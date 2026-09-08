@@ -24,7 +24,7 @@
       display: flex;
       flex-direction: column;
       height: 100vh;
-      height: 100dvh; /* iOS Safari / Chrome の可変UIに完全追従 */
+      height: 100dvh;
       overflow: hidden;
       background: #f8fafc;
       color: #334155;
@@ -106,10 +106,10 @@
       cursor: grabbing;
     }
 
-    /* 自治体境界線・ポリゴン */
+    /* 市区町村境界線（同色同士でも境目が見分けられる 0.7px） */
     path.municipality {
       stroke: #94a3b8;
-      stroke-width: 0.5px;
+      stroke-width: 0.7px;
       stroke-linejoin: round;
       stroke-linecap: round;
       vector-effect: non-scaling-stroke;
@@ -119,7 +119,7 @@
 
     /* ホバー時（PC） */
     path.municipality.hover-highlight {
-      stroke: #334155;
+      stroke: #0f172a;
       stroke-width: 1.2px;
       vector-effect: non-scaling-stroke;
     }
@@ -129,6 +129,17 @@
       stroke: #2563eb !important;
       stroke-width: 2.2px !important;
       vector-effect: non-scaling-stroke;
+    }
+
+    /* 都道府県境 ＋ 海岸線 */
+    path.pref-boundary {
+      fill: none;
+      stroke: #64748b;
+      stroke-width: 0.9px;
+      stroke-linejoin: round;
+      stroke-linecap: round;
+      vector-effect: non-scaling-stroke;
+      pointer-events: none;
     }
 
     /* 起動ステータス */
@@ -148,7 +159,7 @@
       pointer-events: none;
     }
 
-    /* ガイドバー（画面上部中央） */
+    /* ガイドバー */
     #guide-bar {
       position: absolute;
       top: 12px;
@@ -449,7 +460,7 @@
 
       const STORAGE_KEY = "japan_muni_experience_map";
       let muniNamesMap = {};
-      let selectedCode = null; // 現在選択中の自治体コード
+      let selectedCode = null;
 
       // 自治体コード正規化
       function getMuniCode(d) {
@@ -460,6 +471,12 @@
         if (s.length === 4) return "0" + s;
         if (s.length === 6) return s.slice(0, 5);
         return s;
+      }
+
+      // 都道府県コード（先頭2桁）を取得
+      function getPrefCode(d) {
+        const code = getMuniCode(d);
+        return (code && code.length >= 2) ? code.slice(0, 2) : "00";
       }
 
       // 市区町村名取得
@@ -546,7 +563,7 @@
             e.stopPropagation();
             let nextLevel = idx;
 
-            // ボタンを直接押した時: 現在と同じ色なら白(0)に戻すトグル
+            // ボタン直接押下時: 現在と同じ色なら白(0)に戻す
             if (currentLevel !== 0 && currentLevel === idx) {
               nextLevel = 0;
             }
@@ -620,9 +637,10 @@
 
         let featureCollection;
         let features = [];
+        let objKey = null;
 
         if (japan.type === "Topology") {
-          const objKey = (japan.objects && japan.objects.municipalities) 
+          objKey = (japan.objects && japan.objects.municipalities) 
             ? "municipalities" 
             : Object.keys(japan.objects || {})[0];
 
@@ -650,7 +668,7 @@
           pathFn = d3.geoPath();
         }
 
-        // 自治体パス描画
+        // 1. 市区町村ポリゴン（塗り分け・イベントレイヤー）
         const paths = g.selectAll("path.municipality")
           .data(features)
           .enter()
@@ -675,17 +693,31 @@
             const name = getMuniName(d);
 
             if (selectedCode === code) {
-              // ★選択中の市町村をクリック: 次の状態へ進める (0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 0)
               const currentLevel = expData[code] ?? 0;
               const nextLevel = (currentLevel + 1) % EXPERIENCES.length;
               applyLevel(code, name, nextLevel);
             } else {
-              // ★未選択の市町村をクリック: 選択してボトムシートを表示
               updateBottomSheet(code, name);
             }
           });
 
         paths.append("title").text(d => getMuniName(d));
+
+        // 2. 都道府県境 ＋ 海岸線の統一オーバーレイ描画
+        if (japan.type === "Topology" && objKey) {
+          try {
+            const boundaryMesh = topojson.mesh(japan, japan.objects[objKey], (a, b) => {
+              return a === b || getPrefCode(a) !== getPrefCode(b);
+            });
+
+            g.append("path")
+              .datum(boundaryMesh)
+              .attr("class", "pref-boundary")
+              .attr("d", pathFn);
+          } catch (meshErr) {
+            console.warn("境界線メッシュの生成をスキップしました:", meshErr);
+          }
+        }
 
         statusMsg.style.display = "none";
         if (isImported) {
